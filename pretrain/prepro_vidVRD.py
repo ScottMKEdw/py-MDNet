@@ -1,38 +1,57 @@
 import os
 import numpy as np
 import pickle
-from collections import OrderedDict
+import json
+import re
+import pandas as pd
 
-seq_home = 'datasets/VOT'
-seqlist_path = 'datasets/list/vot-otb.txt'
-output_path = 'pretrain/data/vot-otb.pkl'
+id=[]
 
-with open(seqlist_path,'r') as fp:
-    seq_list = fp.read().splitlines()
+annotation_folder = r'C:\Users\scott\Documents\School\GitHub\MDNet\py-MDNet\datasets\vidVRD\vidvrd-annotations\train'
+output_path = r'C:\Users\scott\Documents\School\GitHub\MDNet\py-MDNet\pretrain/data/vidVRD.pkl'
 
-# Construct db
-data = OrderedDict()
-for i, seq in enumerate(seq_list):
-    img_list = sorted([p for p in os.listdir(os.path.join(seq_home, seq)) if os.path.splitext(p)[1] == '.jpg'])
-    gt = np.loadtxt(os.path.join(seq_home, seq, 'groundtruth.txt'), delimiter=',')
 
-    if seq == 'vot2014/ball':
-        img_list = img_list[1:]
+#def train_or_test(input):
+#  if input == 'train': 
+#    annotation_folder = os.path.join(annotaton_folder, 'train')
 
-    assert len(img_list) == len(gt), "Lengths do not match!!"
+#  elif input == 'test':
+#    annotation_folder = os.path.join(annotation_folder, 'test')
 
-    if gt.shape[1] == 8:
-        x_min = np.min(gt[:, [0, 2, 4, 6]], axis=1)[:, None]
-        y_min = np.min(gt[:, [1, 3, 5, 7]], axis=1)[:, None]
-        x_max = np.max(gt[:, [0, 2, 4, 6]], axis=1)[:, None]
-        y_max = np.max(gt[:, [1, 3, 5, 7]], axis=1)[:, None]
-        gt = np.concatenate((x_min, y_min, x_max - x_min, y_max - y_min), axis=1)
+annotation_list = os.listdir(annotation_folder)
 
-    img_list = [os.path.join(seq_home, seq, img) for img in img_list]
-    data[seq] = {'images': img_list, 'gt': gt}
+for value in annotation_list:
+  split = re.split(r'[_.]', value)
+  id.append(split[2])
+  
+xmin = []
+xmax = []
+ymin = []
+ymax = []
+tid = []
 
-# Save db
+with open(os.path.join(annotation_folder,'ILSVRC2015_train_00005003.json')) as f:
+  data = json.load(f)
+
+  for i in range(len(data['trajectories'])):
+    for j in range(len(data['subject/objects'])):
+      tid.append( data['trajectories'][i][j]['tid'])
+      
+      xmin.append( data['trajectories'][i][j]['bbox']['xmin'])
+      xmax.append( data['trajectories'][i][j]['bbox']['xmax'])
+      ymin.append( data['trajectories'][i][j]['bbox']['ymin'])
+      ymax.append( data['trajectories'][i][j]['bbox']['ymax'])
+
+coords = np.array([xmin, xmax, ymin, ymax])
+corners = np.transpose(np.array([coords[0], coords[2], coords[1]-coords[0], coords[3]-coords[2]]))
+
+data = {'images': id, 'corners': corners}
+
 output_dir = os.path.dirname(output_path)
 os.makedirs(output_dir, exist_ok=True)
 with open(output_path, 'wb') as fp:
     pickle.dump(data, fp)
+
+
+
+
